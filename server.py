@@ -239,58 +239,58 @@ class RequestHandler(BaseHTTPRequestHandler):
                     continue
                 results = db.search_unique(term)
                 if results:
-                    p = results[0]
-                    primary_name = db.get_profile_primary_name(p)
-                    
-                    pType = p.get("PartySubTypeID", {}).get("value", "") if isinstance(p.get("PartySubTypeID"), dict) else str(p.get("PartySubTypeID", ""))
-                    
-                    aliases = []
-                    for ident in p.get('Identity', []):
-                        for alias in ident.get('Alias', []):
-                            if alias.get('Primary') != 'true':
-                                parts = []
-                                for part in alias.get('DocumentedName', [])[0].get('DocumentedNamePart', [])[0].get('NamePartValue', []):
-                                    if 'text' in part:
-                                        parts.append(part['text'])
-                                if parts:
-                                    aliases.append(" ".join(parts))
-                                    
-                    feature_map = {n: [] for n in f_names}
-                    
-                    for f in p.get('Feature', []):
-                        ftype = f.get('FeatureTypeID', {}).get('value', '') if isinstance(f.get('FeatureTypeID'), dict) else str(f.get('FeatureTypeID', ''))
+                    for p in results:
+                        primary_name = db.get_profile_primary_name(p)
                         
-                        for fv in f.get('FeatureVersion', []):
-                            detail = ""
-                            for loc in fv.get('VersionLocation', []):
-                                locid = loc.get('LocationID', {})
-                                loc_str = locid.get('value') or locid.get('id') if isinstance(locid, dict) else str(locid)
-                                if loc_str:
-                                    detail += loc_str + " "
-                            for vd in fv.get('VersionDetail', []):
-                                if 'text' in vd:
-                                    detail += vd['text'] + " "
-                            for dp in fv.get('DatePeriod', []):
-                                start = dp.get('Start', [])
-                                if start and 'From' in start[0]:
-                                    from_date = start[0]['From'][0]
-                                    y = from_date.get('Year', [{}])[0].get('text', '')
-                                    m = from_date.get('Month', [{}])[0].get('text', '')
-                                    d = from_date.get('Day', [{}])[0].get('text', '')
-                                    date_str = "-".join([x for x in [y, m, d] if x])
-                                    detail += date_str + " "
+                        pType = p.get("PartySubTypeID", {}).get("value", "") if isinstance(p.get("PartySubTypeID"), dict) else str(p.get("PartySubTypeID", ""))
+                        
+                        aliases = []
+                        for ident in p.get('Identity', []):
+                            for alias in ident.get('Alias', []):
+                                if alias.get('Primary') != 'true':
+                                    parts = []
+                                    for part in alias.get('DocumentedName', [])[0].get('DocumentedNamePart', [])[0].get('NamePartValue', []):
+                                        if 'text' in part:
+                                            parts.append(part['text'])
+                                    if parts:
+                                        aliases.append(" ".join(parts))
+                                        
+                        feature_map = {n: [] for n in f_names}
+                        
+                        for f in p.get('Feature', []):
+                            ftype = f.get('FeatureTypeID', {}).get('value', '') if isinstance(f.get('FeatureTypeID'), dict) else str(f.get('FeatureTypeID', ''))
                             
-                            if detail.strip() and ftype in feature_map:
-                                feature_map[ftype].append(detail.strip())
+                            for fv in f.get('FeatureVersion', []):
+                                detail = ""
+                                for loc in fv.get('VersionLocation', []):
+                                    locid = loc.get('LocationID', {})
+                                    loc_str = locid.get('value') or locid.get('id') if isinstance(locid, dict) else str(locid)
+                                    if loc_str:
+                                        detail += loc_str + " "
+                                for vd in fv.get('VersionDetail', []):
+                                    if 'text' in vd:
+                                        detail += vd['text'] + " "
+                                for dp in fv.get('DatePeriod', []):
+                                    start = dp.get('Start', [])
+                                    if start and 'From' in start[0]:
+                                        from_date = start[0]['From'][0]
+                                        y = from_date.get('Year', [{}])[0].get('text', '')
+                                        m = from_date.get('Month', [{}])[0].get('text', '')
+                                        d = from_date.get('Day', [{}])[0].get('text', '')
+                                        date_str = "-".join([x for x in [y, m, d] if x])
+                                        detail += date_str + " "
+                                
+                                if detail.strip() and ftype in feature_map:
+                                    feature_map[ftype].append(detail.strip())
 
-                    pComment = p.get('DistinctPartyComment', '')
-                    row_data = [
-                        term, "Yes", p.get("ID", ""), primary_name, pType, pComment, "; ".join(aliases)
-                    ]
-                    for fn in f_names:
-                        row_data.append("; ".join(feature_map[fn]))
+                        pComment = p.get('DistinctPartyComment', '')
+                        row_data = [
+                            term, "Yes", p.get("ID", ""), primary_name, pType, pComment, "; ".join(aliases)
+                        ]
+                        for fn in f_names:
+                            row_data.append("; ".join(feature_map[fn]))
 
-                    writer.writerow(row_data)
+                        writer.writerow(row_data)
                 else:
                     null_row = [term, "No", "", "", "", "", ""] + [""] * len(f_names)
                     writer.writerow(null_row)
