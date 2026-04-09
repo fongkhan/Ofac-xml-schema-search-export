@@ -17,6 +17,7 @@
         <nav class="tabs glass-panel">
             <button class="tab-btn active" data-target="unique-search-tab">Unique Search</button>
             <button class="tab-btn" data-target="batch-search-tab">Batch Search</button>
+            <button class="tab-btn" data-target="datasets-tab">Raw Datasets Export</button>
             <button class="tab-btn" data-target="upload-tab">Database Upload</button>
         </nav>
 
@@ -49,6 +50,19 @@
                     <button id="uploadBatchBtn" class="btn primary">Process Batch Query</button>
                 </div>
                 <div id="batch-status"></div>
+            </section>
+
+            <!-- Datasets Export -->
+            <section id="datasets-tab" class="tab-content glass-panel hidden">
+                <h2>Raw Extracted Datasets</h2>
+                <p>Dynamically generate raw reference lists streamed straight from the XML registry directly to your drive securely saving memory.</p>
+                <div class="action-box" style="display:flex; flex-direction:column; gap:10px; margin-top:20px;">
+                    <button class="btn secondary" onclick="window.location.href='/api/export/ReferenceValueSets'">Download ReferenceValueSets (ZIP)</button>
+                    <button class="btn secondary" onclick="window.location.href='/api/export/Locations'">Download Locations (CSV)</button>
+                    <button class="btn secondary" onclick="window.location.href='/api/export/IDRegDocuments'">Download ID Registration Docs (CSV)</button>
+                    <button class="btn secondary" onclick="window.location.href='/api/export/ProfileRelationships'">Download Profile Relationships (CSV)</button>
+                    <button class="btn secondary" onclick="window.location.href='/api/export/SanctionsEntries'">Download Core Sanctions Entries (CSV)</button>
+                </div>
             </section>
 
             <!-- DB Upload -->

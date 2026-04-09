@@ -170,7 +170,104 @@ db = OFACDatabase()
 if os.path.exists(DATA_FILE):
     db.load(DATA_FILE)
 
+class ChunkWriter:
+    def __init__(self, wfile): self.wfile = wfile
+    def write(self, s): self.wfile.write(s.encode('utf-8'))
+
 class RequestHandler(BaseHTTPRequestHandler):
+    
+    def _flatten_element(self, elem, prefix=''):
+        d = {}
+        for k, v in elem.attrib.items():
+            d[prefix + k] = [v]
+        if elem.text and elem.text.strip():
+            d[prefix + 'Text'] = [elem.text.strip()]
+        for c in elem:
+            ctag = c.tag.split('}')[-1]
+            child_d = self._flatten_element(c, prefix + ctag + '_')
+            for ck, cv in child_d.items():
+                if ck not in d: d[ck] = []
+                d[ck].extend(cv)
+                
+        if prefix == '':
+            for k in d:
+                d[k] = "; ".join(d[k])
+        return d
+
+    def export_references(self):
+        import zipfile
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/zip')
+        self.send_header('Content-Disposition', 'attachment; filename="ReferenceValueSets.zip"')
+        self.end_headers()
+        
+        mem_zip = io.BytesIO()
+        with zipfile.ZipFile(mem_zip, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for set_name, values_dict in db.references.items():
+                if set_name == 'Location': continue
+                csv_io = io.StringIO()
+                cw = csv.writer(csv_io)
+                cw.writerow(["ID", "Value"])
+                for k, v in values_dict.items():
+                    cw.writerow([k, v])
+                zf.writestr(f"{set_name}.csv", csv_io.getvalue().encode('utf-8'))
+        
+        self.wfile.write(mem_zip.getvalue())
+
+    def export_dataset(self, tag_name):
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/csv')
+        self.send_header('Content-Disposition', f'attachment; filename="{tag_name}.csv"')
+        self.end_headers()
+        
+        global_headers = set()
+        expected_child = tag_name[:-1] if tag_name.endswith('s') else tag_name
+        if tag_name == 'SanctionsEntries': expected_child = 'SanctionsEntry'
+        if tag_name == 'DistinctParties': expected_child = 'DistinctParty'
+        
+        try:
+            context = ET.iterparse(DATA_FILE, events=('start', 'end'))
+            in_target = False
+            for event, elem in context:
+                tag = elem.tag.split('}')[-1]
+                if event == 'start' and tag == tag_name:
+                    in_target = True
+                if event == 'end' and in_target and tag == expected_child:
+                    flat = self._flatten_element(elem)
+                    global_headers.update(flat.keys())
+                    elem.clear()
+                if event == 'end' and tag == tag_name:
+                    break
+        except Exception:
+            pass
+            
+        global_headers = sorted(list(global_headers))
+        if not global_headers:
+            global_headers = ["No Data Found"]
+            
+        csv_writer = csv.writer(ChunkWriter(self.wfile))
+        csv_writer.writerow(global_headers)
+        
+        if global_headers[0] == "No Data Found":
+            return
+            
+        try:
+            context = ET.iterparse(DATA_FILE, events=('start', 'end'))
+            in_target = False
+            for event, elem in context:
+                tag = elem.tag.split('}')[-1]
+                if event == 'start' and tag == tag_name:
+                    in_target = True
+                if event == 'end' and in_target and tag == expected_child:
+                    flat = self._flatten_element(elem)
+                    row_vals = [flat.get(h, '') for h in global_headers]
+                    csv_writer.writerow(row_vals)
+                    elem.clear()
+                if event == 'end' and tag == tag_name:
+                    break
+        except Exception:
+            pass
+
     def do_GET(self):
         parsed_path = urllib.parse.urlparse(self.path)
         path = parsed_path.path
@@ -191,6 +288,16 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.send_header('Content-Disposition', 'attachment; filename="batch_template.csv"')
             self.end_headers()
             self.wfile.write(b"SearchTerm\n")
+            
+        elif path.startswith("/api/export/"):
+            dataset = path.split("/")[-1]
+            if dataset == "ReferenceValueSets":
+                self.export_references()
+            elif dataset in ["Locations", "IDRegDocuments", "ProfileRelationships", "SanctionsEntries", "DistinctParties"]:
+                self.export_dataset(dataset)
+            else:
+                self.send_response(404)
+                self.end_headers()
             
         elif path == "/api/search/unique":
             query = urllib.parse.parse_qs(parsed_path.query).get('q', [''])[0]
