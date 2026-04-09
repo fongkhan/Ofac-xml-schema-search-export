@@ -150,21 +150,21 @@ class OFACDatabase:
         return results
 
     def get_profile_primary_name(self, profile):
-        # Helper to extract the primary name string for CSV
+        primary_names = []
         try:
             for identity in profile.get('Identity', []):
-                if identity.get('Primary') == 'true':
-                    for alias in identity.get('Alias', []):
-                        if alias.get('Primary') == 'true':
-                            parts = []
-                            for p in alias.get('DocumentedName', [])[0].get('DocumentedNamePart', [])[0].get('NamePartValue', []):
+                for alias in identity.get('Alias', []):
+                    if alias.get('Primary') == 'true':
+                        parts = []
+                        if alias.get('DocumentedName') and alias['DocumentedName'][0].get('DocumentedNamePart'):
+                            for p in alias['DocumentedName'][0]['DocumentedNamePart'][0].get('NamePartValue', []):
                                 if 'text' in p:
                                     parts.append(p['text'])
-                            if parts:
-                                return " ".join(parts)
+                        if parts:
+                            primary_names.append(" ".join(parts))
         except Exception:
             pass
-        return "Unknown Name"
+        return "; ".join(primary_names) if primary_names else "Unknown Name"
 
 db = OFACDatabase()
 if os.path.exists(DATA_FILE):

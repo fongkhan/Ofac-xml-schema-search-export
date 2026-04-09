@@ -98,7 +98,7 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
             card.className = 'profile-card';
             
             // Try extract prime names
-            let primaryName = "Unknown Entity";
+            let primaryNameStrs = [];
             const aliases = [];
             
             if (p.Identity) {
@@ -112,7 +112,7 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
                                 }).join(' ');
                             }
                             if (al.Primary === "true") {
-                                primaryName = nameText;
+                                if (nameText) primaryNameStrs.push(nameText);
                             } else {
                                 if(nameText) aliases.push(nameText);
                             }
@@ -120,6 +120,7 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
                     }
                 });
             }
+            let primaryName = primaryNameStrs.length > 0 ? primaryNameStrs.join('; ') : "Unknown Entity";
             
             // Extract partyType
             let pType = p.PartySubTypeID ? (p.PartySubTypeID.value || p.PartySubTypeID) : "Unknown";
@@ -190,7 +191,7 @@ document.getElementById('exportCsvBtn').addEventListener('click', () => {
     ];
     
     currentUniqueRawData.forEach(p => {
-        let primaryName = "Unknown";
+        let primaryNameStrs = [];
         let aliases = [];
         if (p.Identity) {
             p.Identity.forEach(ident => {
@@ -203,7 +204,7 @@ document.getElementById('exportCsvBtn').addEventListener('click', () => {
                             }).join(' ');
                         }
                         if (al.Primary === "true") {
-                            primaryName = nameText;
+                            if (nameText) primaryNameStrs.push(nameText);
                         } else {
                             if(nameText) aliases.push(nameText);
                         }
@@ -211,6 +212,7 @@ document.getElementById('exportCsvBtn').addEventListener('click', () => {
                 }
             });
         }
+        let primaryName = primaryNameStrs.length > 0 ? primaryNameStrs.join('; ') : "Unknown";
         let pType = p.PartySubTypeID ? (p.PartySubTypeID.value || p.PartySubTypeID) : "Unknown";
         
         let featureMap = {};
