@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OFAC SDN Advanced Search API</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <header class="glass-panel text-center">
+            <h1>OFAC Advanced Search</h1>
+            <p>Database Status: <span id="dbSearchStatus" class="status-indicator">Checking...</span></p>
+        </header>
+
+        <nav class="tabs glass-panel">
+            <button class="tab-btn active" data-target="unique-search-tab">Unique Search</button>
+            <button class="tab-btn" data-target="batch-search-tab">Batch Search</button>
+            <button class="tab-btn" data-target="upload-tab">Database Upload</button>
+        </nav>
+
+        <main class="content-area">
+            <!-- Unique Search -->
+            <section id="unique-search-tab" class="tab-content active glass-panel">
+                <h2>Unique Profile Search</h2>
+                <p>Search via exact name, alias, or OFAC Profile ID.</p>
+                <div class="search-form">
+                    <input type="text" id="searchInput" placeholder="Enter Name or ID..." />
+                    <button id="searchBtn" class="btn primary">Search</button>
+                </div>
+                
+                <div class="results-meta" id="u-meta"></div>
+                <div id="u-results" class="results-container"></div>
+                <button id="exportCsvBtn" class="btn secondary hidden" style="margin-top: 15px;">Export Results as CSV</button>
+            </section>
+
+            <!-- Batch Search -->
+            <section id="batch-search-tab" class="tab-content glass-panel hidden">
+                <h2>Batch Search</h2>
+                <div class="action-box">
+                    <p>1. Download the expected model template to fill in your query lines.</p>
+                    <a href="/api/template" class="btn secondary">Download Template (CSV)</a>
+                </div>
+                <br/>
+                <div class="action-box">
+                    <p>2. Upload your completed CSV batch mapping to process matches against our registry.</p>
+                    <input type="file" id="batchFileInput" accept=".csv" />
+                    <button id="uploadBatchBtn" class="btn primary">Process Batch Query</button>
+                </div>
+                <div id="batch-status"></div>
+            </section>
+
+            <!-- DB Upload -->
+            <section id="upload-tab" class="tab-content glass-panel hidden">
+                <h2>Advanced XML File Update</h2>
+                <p>Upload a new <code>sdn_advanced.xml</code> formatted to schema specifications to immediately refresh the memory block.</p>
+                <div class="action-box">
+                    <input type="file" id="xmlFileInput" accept=".xml" />
+                    <button id="uploadXmlBtn" class="btn warning">Update Database</button>
+                </div>
+                <div id="xml-status"></div>
+            </section>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
