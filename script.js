@@ -143,22 +143,35 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
             
             if (p.Feature) {
                 p.Feature.forEach(f => {
-                    const fType = f.FeatureTypeID ? f.FeatureTypeID.value : "Unknown";
-                    // Extract version locations or dates
+                    const fType = f.FeatureTypeID ? (f.FeatureTypeID.value || f.FeatureTypeID) : "Unknown";
                     let details = "";
                     if (f.FeatureVersion) {
                         f.FeatureVersion.forEach(v => {
                             if (v.VersionLocation && v.VersionLocation[0].LocationID) {
                                 let locObj = v.VersionLocation[0].LocationID;
                                 let locStr = (typeof locObj === 'object') ? (locObj.value || locObj.id || JSON.stringify(locObj)) : locObj;
-                                details += ` Loc: <span class="ref">${locStr}</span>`;
+                                if (locStr) details += `<span class="ref">${locStr}</span> `;
+                            }
+                            if (v.VersionDetail) {
+                                v.VersionDetail.forEach(vd => {
+                                    if (vd.text) details += vd.text + " ";
+                                });
                             }
                             if (v.DatePeriod) {
-                                details += " (Has Date Details)";
+                                v.DatePeriod.forEach(dp => {
+                                    if (dp.Start && dp.Start[0].From && dp.Start[0].From[0]) {
+                                        let from = dp.Start[0].From[0];
+                                        let y = from.Year && from.Year[0].text ? from.Year[0].text : '';
+                                        let m = from.Month && from.Month[0].text ? from.Month[0].text : '';
+                                        let d = from.Day && from.Day[0].text ? from.Day[0].text : '';
+                                        let dateStr = [y, m, d].filter(x=>x).join('-');
+                                        if (dateStr) details += `[${dateStr}] `;
+                                    }
+                                });
                             }
                         });
                     }
-                    html += `<li class="data-item"><strong>${fType}:</strong> ${details || 'N/A'}</li>`;
+                    html += `<li class="data-item"><strong>${fType}:</strong> ${details.trim() || 'N/A'}</li>`;
                 });
             } else {
                 html += `<li class="data-item">No features</li>`;
