@@ -334,12 +334,40 @@ class RequestHandler(BaseHTTPRequestHandler):
             query = urllib.parse.parse_qs(parsed_path.query).get('q', [''])[0]
             if query:
                 results = db.search_unique(query)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps(results).encode('utf-8'))
             else:
-                results = []
+                self.send_response(400)
+                self.end_headers()
+                
+        elif path == "/api/search/dataset":
+            query_dict = urllib.parse.parse_qs(parsed_path.query)
+            dataset = query_dict.get('type', [''])[0]
+            search_str = query_dict.get('q', [''])[0].lower()
+            
+            if not dataset:
+                self.send_response(400)
+                self.end_headers()
+                return
+                
+            results = self.search_dataset(dataset, search_str)
             self.send_response(200)
-            self.send_header('Content-type', 'application/json')
+            self.send_header('Content-Type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps(results).encode('utf-8'))
+            
+        elif path == "/api/status":
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            status = {
+                "profile_count": len(db.profiles),
+                "features_indexed": len(db.feature_index),
+                "db_status": "Ready" if len(db.profiles) > 0 else "Reloading..."
+            }
+            self.wfile.write(json.dumps(status).encode('utf-8'))
             
         elif path == "/":
             self._serve_file("index.html", "text/html")
@@ -350,6 +378,56 @@ class RequestHandler(BaseHTTPRequestHandler):
         else:
             self.send_response(404)
             self.end_headers()
+
+    def search_dataset(self, tag_name, query_str):
+        if tag_name == 'ReferenceValueSets':
+            rows = []
+            for ref_name, ref_dict in db.references.items():
+                if ref_name == 'Location': continue
+                for k, v in ref_dict.items():
+                    if not query_str or query_str in str(k).lower() or query_str in str(v).lower():
+                        rows.append({"Reference Dataset": ref_name, "ID": k, "Value": v})
+            return {"columns": ["Reference Dataset", "ID", "Value"], "rows": rows[:200]}
+            
+        expected_child = tag_name[:-1] if tag_name.endswith('s') else tag_name
+        if tag_name == 'SanctionsEntries': expected_child = 'SanctionsEntry'
+        if tag_name == 'DistinctParties': expected_child = 'DistinctParty'
+        
+        matches = []
+        global_headers = set()
+        
+        try:
+            context = ET.iterparse(DATA_FILE, events=('start', 'end'))
+            in_target = False
+            for event, elem in context:
+                tag = elem.tag.split('}')[-1]
+                if event == 'start' and tag == tag_name:
+                    in_target = True
+                if event == 'end' and in_target and tag == expected_child:
+                    flat = self._flatten_element(elem)
+                    
+                    matched = False
+                    if not query_str:
+                        matched = True
+                    else:
+                        for v in flat.values():
+                            if query_str in str(v).lower():
+                                matched = True
+                                break
+                                
+                    if matched:
+                        matches.append(flat)
+                        global_headers.update(flat.keys())
+                        if len(matches) >= 100:
+                            break
+                    elem.clear()
+                if event == 'end' and tag == tag_name:
+                    break
+        except Exception:
+            pass
+            
+        global_headers = sorted(list(global_headers))
+        return {"columns": global_headers, "rows": matches}
 
     def do_POST(self):
         parsed_path = urllib.parse.urlparse(self.path)

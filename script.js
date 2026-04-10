@@ -387,3 +387,72 @@ document.getElementById('uploadBatchBtn').addEventListener('click', async () => 
         statusTxt.textContent = "Batch error: " + err;
     }
 });
+
+// --- Dataset Explorer Logic ---
+let currentDatasetTab = "ReferenceValueSets";
+
+document.querySelectorAll('.d-tab-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.d-tab-btn').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        currentDatasetTab = e.target.getAttribute('data-dataset');
+        
+        document.getElementById('d-title').innerText = currentDatasetTab + " Viewer";
+        document.getElementById('d-thead').innerHTML = '';
+        document.getElementById('d-tbody').innerHTML = '';
+        document.getElementById('d-status').innerText = 'Ready. Please enter a query...';
+        document.getElementById('d-search').value = "";
+    });
+});
+
+document.getElementById('d-export-btn').addEventListener('click', () => {
+    window.location.href = `/api/export/${currentDatasetTab}`;
+});
+
+document.getElementById('d-search-btn').addEventListener('click', async () => {
+    const q = document.getElementById('d-search').value;
+    const tbody = document.getElementById('d-tbody');
+    const thead = document.getElementById('d-thead');
+    const status = document.getElementById('d-status');
+    
+    tbody.innerHTML = '';
+    thead.innerHTML = '';
+    status.innerText = 'Searching stream...';
+    
+    try {
+        let res = await fetch(`/api/search/dataset?type=${currentDatasetTab}&q=${encodeURIComponent(q)}`);
+        if (!res.ok) throw new Error('Query error');
+        let data = await res.json();
+        
+        if (!data.columns || data.columns.length === 0) {
+            status.innerText = "No data mapping found. Dataset might not exist.";
+            return;
+        }
+        
+        status.innerText = `Showing ${data.rows.length} matches (Max 100 limit enforced)`;
+        
+        // Build Headers
+        let headerRow = '<tr>';
+        data.columns.forEach(col => {
+            headerRow += `<th>${col}</th>`;
+        });
+        headerRow += '</tr>';
+        thead.innerHTML = headerRow;
+        
+        // Build Rows
+        let bodyHtml = '';
+        data.rows.forEach(row => {
+            bodyHtml += '<tr>';
+            data.columns.forEach(col => {
+                let cellData = row[col] !== undefined ? row[col] : '';
+                bodyHtml += `<td>${cellData}</td>`;
+            });
+            bodyHtml += '</tr>';
+        });
+        tbody.innerHTML = bodyHtml;
+        
+    } catch(err) {
+        status.innerText = "Error executing query constraint block.";
+        console.error(err);
+    }
+});

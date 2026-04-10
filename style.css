@@ -145,6 +145,100 @@ input[type="text"]:focus {
     background: var(--primary-color);
     color: #000;
 }
+
+/* Dataset UI Explorer Elements */
+.dataset-layout {
+    display: flex;
+    gap: 20px;
+    height: 600px;
+}
+
+.dataset-sidebar {
+    width: 250px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border-right: 1px solid var(--glass-border);
+    padding-right: 15px;
+}
+
+.d-tab-btn {
+    padding: 10px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-color);
+    text-align: left;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.95rem;
+}
+
+.d-tab-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.d-tab-btn.active {
+    background: var(--primary-color);
+    border-color: var(--primary-hover);
+    box-shadow: 0 4px 15px rgba(0, 150, 255, 0.2);
+}
+
+.dataset-viewer {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.viewer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.dataset-desc {
+    color: var(--text-muted);
+    font-size: 0.9em;
+    margin-bottom: 15px;
+}
+
+.data-table-container {
+    flex-grow: 1;
+    overflow: auto;
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85em;
+    text-align: left;
+}
+
+.data-table th, .data-table td {
+    padding: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    white-space: nowrap;
+}
+
+.data-table th {
+    background: rgba(0,0,0,0.4);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    color: var(--primary-color);
+    text-transform: uppercase;
+    font-size: 0.8em;
+    letter-spacing: 0.5px;
+}
+
+.data-table tr:hover td {
+    background: rgba(255,255,255,0.05);
+}
 .btn.primary:hover {
     background: var(--primary-hover);
     transform: translateY(-1px);

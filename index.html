@@ -54,14 +54,38 @@
 
             <!-- Datasets Export -->
             <section id="datasets-tab" class="tab-content glass-panel hidden">
-                <h2>Raw Extracted Datasets</h2>
-                <p>Dynamically generate raw reference lists streamed straight from the XML registry directly to your drive securely saving memory.</p>
-                <div class="action-box" style="display:flex; flex-direction:column; gap:10px; margin-top:20px;">
-                    <button class="btn secondary" onclick="window.location.href='/api/export/ReferenceValueSets'">Download ReferenceValueSets (ZIP)</button>
-                    <button class="btn secondary" onclick="window.location.href='/api/export/Locations'">Download Locations (CSV)</button>
-                    <button class="btn secondary" onclick="window.location.href='/api/export/IDRegDocuments'">Download ID Registration Docs (CSV)</button>
-                    <button class="btn secondary" onclick="window.location.href='/api/export/ProfileRelationships'">Download Profile Relationships (CSV)</button>
-                    <button class="btn secondary" onclick="window.location.href='/api/export/SanctionsEntries'">Download Core Sanctions Entries (CSV)</button>
+                <div class="dataset-layout">
+                    <!-- Sidebar -->
+                    <div class="dataset-sidebar">
+                        <button class="d-tab-btn active" data-dataset="ReferenceValueSets">ReferenceValueSets</button>
+                        <button class="d-tab-btn" data-dataset="Locations">Locations</button>
+                        <button class="d-tab-btn" data-dataset="IDRegDocuments">IDRegDocuments</button>
+                        <button class="d-tab-btn" data-dataset="ProfileRelationships">ProfileRelationships</button>
+                        <button class="d-tab-btn" data-dataset="SanctionsEntries">SanctionsEntries</button>
+                        <button class="d-tab-btn" data-dataset="DistinctParties">DistinctParties</button>
+                    </div>
+                    
+                    <!-- Main Viewer -->
+                    <div class="dataset-viewer">
+                        <div class="viewer-header">
+                            <h2 id="d-title">ReferenceValueSets Viewer</h2>
+                            <button id="d-export-btn" class="btn secondary">Export Full Dataset</button>
+                        </div>
+                        <p class="dataset-desc" id="d-desc">Search across all internal dictionary configurations dynamically.</p>
+                        
+                        <div class="search-form" style="margin-bottom: 15px;">
+                            <input type="text" id="d-search" placeholder="Query Dataset Records..." />
+                            <button id="d-search-btn" class="btn primary">Search Subset</button>
+                        </div>
+                        
+                        <div id="d-status" style="color:var(--text-muted); margin-bottom:10px; font-size:0.9em; font-style:italic;">Showing results (Max 100 stream limit enforced)</div>
+                        <div class="data-table-container">
+                            <table id="d-table" class="data-table">
+                                <thead id="d-thead"></thead>
+                                <tbody id="d-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </section>
 
