@@ -149,19 +149,50 @@ class OFACDatabase:
                     break
         return results
 
+    def format_alias_name(self, alias_dict, identity_dict):
+        group_map = {}
+        for groups in identity_dict.get('NamePartGroups', []):
+            for mg in groups.get('MasterNamePartGroup', []):
+                for ng in mg.get('NamePartGroup', []):
+                    gid = ng.get('ID')
+                    tid = ng.get('NamePartTypeID', {})
+                    ty = tid.get('value') if isinstance(tid, dict) else str(tid)
+                    group_map[gid] = ty
+                    
+        order_map = {
+            "First Name": 1,
+            "Middle Name": 2,
+            "Patronymic": 3,
+            "Matronymic": 4,
+            "Last Name": 5,
+            "Entity Name": 10,
+            "Nickname": 11,
+            "Vessel Name": 12,
+            "Aircraft Name": 13
+        }
+        
+        parts_list = []
+        for dn in alias_dict.get('DocumentedName', []):
+            for pt in dn.get('DocumentedNamePart', []):
+                for nv in pt.get('NamePartValue', []):
+                    if 'text' in nv:
+                        gid = nv.get('NamePartGroupID')
+                        ty = group_map.get(gid, "Unknown")
+                        weight = order_map.get(ty, 99)
+                        parts_list.append((weight, nv['text']))
+                        
+        parts_list.sort(key=lambda x: x[0])
+        return " ".join([x[1] for x in parts_list])
+
     def get_profile_primary_name(self, profile):
         primary_names = []
         try:
             for identity in profile.get('Identity', []):
                 for alias in identity.get('Alias', []):
                     if alias.get('Primary') == 'true':
-                        parts = []
-                        if alias.get('DocumentedName') and alias['DocumentedName'][0].get('DocumentedNamePart'):
-                            for p in alias['DocumentedName'][0]['DocumentedNamePart'][0].get('NamePartValue', []):
-                                if 'text' in p:
-                                    parts.append(p['text'])
-                        if parts:
-                            primary_names.append(" ".join(parts))
+                        formatted = self.format_alias_name(alias, identity)
+                        if formatted:
+                            primary_names.append(formatted)
         except Exception:
             pass
         return "; ".join(primary_names) if primary_names else "Unknown Name"
@@ -355,12 +386,9 @@ class RequestHandler(BaseHTTPRequestHandler):
                         for ident in p.get('Identity', []):
                             for alias in ident.get('Alias', []):
                                 if alias.get('Primary') != 'true':
-                                    parts = []
-                                    for part in alias.get('DocumentedName', [])[0].get('DocumentedNamePart', [])[0].get('NamePartValue', []):
-                                        if 'text' in part:
-                                            parts.append(part['text'])
-                                    if parts:
-                                        aliases.append(" ".join(parts))
+                                    formatted = db.format_alias_name(alias, ident)
+                                    if formatted:
+                                        aliases.append(formatted)
                                         
                         feature_map = {n: [] for n in f_names}
                         

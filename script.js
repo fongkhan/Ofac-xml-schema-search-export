@@ -12,6 +12,48 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 let currentUniqueRawData = [];
 let availableFeatureTypes = [];
 
+const namePartOrder = {
+    "First Name": 1,
+    "Middle Name": 2,
+    "Patronymic": 3,
+    "Matronymic": 4,
+    "Last Name": 5,
+    "Entity Name": 10,
+    "Nickname": 11,
+    "Vessel Name": 12,
+    "Aircraft Name": 13
+};
+
+function formatAliasName(aliasNode, identNode) {
+    let groupMap = {};
+    if (identNode && identNode.NamePartGroups && identNode.NamePartGroups[0].MasterNamePartGroup) {
+        identNode.NamePartGroups[0].MasterNamePartGroup.forEach(mg => {
+            if(mg.NamePartGroup && mg.NamePartGroup[0]) {
+                let npg = mg.NamePartGroup[0];
+                let ty = npg.NamePartTypeID ? (typeof npg.NamePartTypeID === 'object' ? npg.NamePartTypeID.value : npg.NamePartTypeID) : "Unknown";
+                groupMap[npg.ID] = ty;
+            }
+        });
+    }
+
+    let partsList = [];
+    if (aliasNode.DocumentedName && aliasNode.DocumentedName[0].DocumentedNamePart) {
+        aliasNode.DocumentedName[0].DocumentedNamePart.forEach(part => {
+            if (part.NamePartValue) {
+                part.NamePartValue.forEach(v => {
+                    let text = v.text || "";
+                    let gid = v.NamePartGroupID;
+                    let typeName = groupMap[gid] || "Unknown";
+                    let order = namePartOrder[typeName] || 99;
+                    if(text) partsList.push({text: text, order: order});
+                });
+            }
+        });
+    }
+    partsList.sort((a,b) => a.order - b.order);
+    return partsList.map(x=>x.text).join(' ');
+}
+
 // Check Server Status
 async function checkStatus() {
     try {
@@ -105,12 +147,7 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
                 p.Identity.forEach(ident => {
                     if (ident.Alias) {
                         ident.Alias.forEach(al => {
-                            let nameText = "";
-                            if (al.DocumentedName && al.DocumentedName[0].DocumentedNamePart) {
-                                nameText = al.DocumentedName[0].DocumentedNamePart.map(part => {
-                                    return part.NamePartValue ? part.NamePartValue.map(v => v.text).join(' ') : "";
-                                }).join(' ');
-                            }
+                            let nameText = formatAliasName(al, ident);
                             if (al.Primary === "true") {
                                 if (nameText) primaryNameStrs.push(nameText);
                             } else {
@@ -220,12 +257,7 @@ document.getElementById('exportCsvBtn').addEventListener('click', () => {
             p.Identity.forEach(ident => {
                 if (ident.Alias) {
                     ident.Alias.forEach(al => {
-                        let nameText = "";
-                        if (al.DocumentedName && al.DocumentedName[0].DocumentedNamePart) {
-                            nameText = al.DocumentedName[0].DocumentedNamePart.map(part => {
-                                return part.NamePartValue ? part.NamePartValue.map(v => v.text).join(' ') : "";
-                            }).join(' ');
-                        }
+                        let nameText = formatAliasName(al, ident);
                         if (al.Primary === "true") {
                             if (nameText) primaryNameStrs.push(nameText);
                         } else {
