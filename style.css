@@ -10,6 +10,15 @@
     --secondary-hover: #484f58;
     --warning-color: #f85149;
     --warning-hover: #ff7b72;
+    --input-bg: rgba(0, 0, 0, 0.2);
+    --active-tab-bg: var(--primary-color);
+    --active-tab-text: #000;
+    --table-head-bg: rgba(0, 0, 0, 0.4);
+    --table-border: rgba(255, 255, 255, 0.05);
+    --status-ready: #7ee787;
+    --card-bg: rgba(255, 255, 255, 0.02);
+    --card-border: rgba(255, 255, 255, 0.08);
+    --data-item-bg: rgba(0, 0, 0, 0.2);
 }
 
 body.light-mode {
@@ -24,6 +33,15 @@ body.light-mode {
     --secondary-hover: #c4cbcf;
     --warning-color: #cf222e;
     --warning-hover: #a40e26;
+    --input-bg: rgba(255, 255, 255, 0.8);
+    --active-tab-bg: #e1e9f5;
+    --active-tab-text: #0969da;
+    --table-head-bg: #f6f8fa;
+    --table-border: #d0d7de;
+    --status-ready: #1a7f37;
+    --card-bg: rgba(255, 255, 255, 0.5);
+    --card-border: rgba(0, 0, 0, 0.1);
+    --data-item-bg: rgba(0, 0, 0, 0.05);
 }
 
 * {
@@ -69,7 +87,7 @@ header h1 {
     margin: 0;
     font-size: 28px;
     font-weight: 600;
-    color: #ffffff;
+    color: var(--text-color);
     letter-spacing: 0.5px;
 }
 
@@ -102,10 +120,11 @@ header p {
 }
 
 .tab-btn.active {
-    background: var(--primary-color);
-    color: #000;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 15px rgba(88, 166, 255, 0.4);
+    background: var(--active-tab-bg);
+    color: var(--active-tab-text);
+    border-color: var(--active-tab-bg);
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .tab-btn:hover:not(.active) {
@@ -122,7 +141,7 @@ header p {
 
 h2 {
     margin-top: 0;
-    color: #fff;
+    color: var(--text-color);
     font-weight: 400;
 }
 
@@ -134,9 +153,9 @@ h2 {
 
 input[type="text"], input[type="file"] {
     flex: 1;
-    background: rgba(0,0,0,0.2);
+    background: var(--input-bg);
     border: 1px solid var(--glass-border);
-    color: #fff;
+    color: var(--text-color);
     padding: 12px 15px;
     border-radius: 8px;
     font-size: 16px;
@@ -162,7 +181,11 @@ input[type="text"]:focus {
 
 .btn.primary {
     background: var(--primary-color);
-    color: #000;
+    color: #fff;
+}
+
+body.light-mode .btn.primary {
+    color: #fff;
 }
 
 /* Dataset UI Explorer Elements */
@@ -198,9 +221,10 @@ input[type="text"]:focus {
 }
 
 .d-tab-btn.active {
-    background: var(--primary-color);
-    border-color: var(--primary-hover);
-    box-shadow: 0 4px 15px rgba(0, 150, 255, 0.2);
+    background: var(--active-tab-bg);
+    color: var(--active-tab-text);
+    border-color: var(--active-tab-bg);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .dataset-viewer {
@@ -239,24 +263,29 @@ input[type="text"]:focus {
 }
 
 .data-table th, .data-table td {
-    padding: 10px;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
+    padding: 12px 10px;
+    border-bottom: 1px solid var(--table-border);
     white-space: nowrap;
 }
 
 .data-table th {
-    background: rgba(0,0,0,0.4);
+    background: var(--table-head-bg);
     position: sticky;
     top: 0;
     z-index: 10;
-    color: var(--primary-color);
+    color: var(--text-color);
     text-transform: uppercase;
-    font-size: 0.8em;
+    font-size: 0.75em;
+    font-weight: 600;
     letter-spacing: 0.5px;
 }
 
+.data-table td {
+    color: var(--text-color);
+}
+
 .data-table tr:hover td {
-    background: rgba(255,255,255,0.05);
+    background: rgba(128, 128, 128, 0.1);
 }
 .btn.primary:hover {
     background: var(--primary-hover);
@@ -265,7 +294,7 @@ input[type="text"]:focus {
 
 .btn.secondary {
     background: var(--secondary-color);
-    color: #c9d1d9;
+    color: var(--text-color);
 }
 .btn.secondary:hover {
     background: var(--secondary-hover);
@@ -300,10 +329,11 @@ input[type="text"]:focus {
 }
 
 .profile-card {
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.08);
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
     padding: 20px;
     border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 .profile-header {
@@ -317,7 +347,7 @@ input[type="text"]:focus {
 
 .profile-title {
     font-size: 1.25em;
-    color: #fff;
+    color: var(--text-color);
     font-weight: 600;
 }
 
@@ -350,7 +380,7 @@ input[type="text"]:focus {
 
 .data-item {
     padding: 8px;
-    background: rgba(0,0,0,0.2);
+    background: var(--data-item-bg);
     border-radius: 4px;
     margin-bottom: 6px;
     font-size: 0.95em;

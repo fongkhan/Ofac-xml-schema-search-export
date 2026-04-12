@@ -31,3 +31,9 @@ All notable changes to the **OFAC SDN Advanced Search API** project will be docu
 ## [1.4.2] - Bug Fixes & API Consolidation
 - **Fixed Persistent Status Bug**: Resolved an issue where the frontend was stuck in the "Reloading..." state due to duplicate `/api/status` endpoint definitions in the backend. Consolidated redundant routes into a single, comprehensive status provider that correctly supplies the `db_status`, `profile_count`, and `feature_types` required for UI synchronization.
 - **Server Runtime Optimization**: Restarted background processing to ensure all structural changes to the search index and reference maps are correctly reflected in the live search environment.
+
+## [1.4.3] - UI/UX & Light Mode Refinement
+- **Enhanced Light Mode Contrast**: Overhauled the color system to eliminate hardcoded white text, replacing it with theme-aware variables. Improved visibility of headers, input fields, and search result cards in high-brightness environments.
+- **Revised Aesthetic Tokens**: Introduced more subtle active states for tabs and sidebars, replacing high-saturation blue blocks with refined, low-opacity highlights for a more premium enterprise feel.
+- **Status Indicator Visibility**: Implemented a dual-state green status indicator that automatically adjusts its hue and saturation to maintain optimal legibility against both dark and light backgrounds.
+- **Fixed Profile Card Layout**: Resolved a CSS bug where search result containers became invisible in light mode, reinstating borders and themed background planes for clearly defined entity data visualization.

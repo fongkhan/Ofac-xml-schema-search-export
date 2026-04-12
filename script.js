@@ -79,7 +79,7 @@ async function checkStatus() {
         let data = await res.json();
         let s = document.getElementById('dbSearchStatus');
         if (data.db_status === "Ready") {
-            s.innerHTML = `<span style="color:#7ee787;">Ready - ${data.profile_count} Profiles Indexed</span>`;
+            s.innerHTML = `<span style="color:var(--status-ready);">Ready - ${data.profile_count} Profiles Indexed</span>`;
             if (data.feature_types) {
                 const fSet = new Set(Object.values(data.feature_types));
                 availableFeatureTypes = Array.from(fSet).sort();
