@@ -578,3 +578,236 @@ document.getElementById('d-search-btn').addEventListener('click', async () => {
         console.error(err);
     }
 });
+
+// Database Comparison Logic
+document.getElementById('runCompareBtn').addEventListener('click', async () => {
+    const fileInst = document.getElementById('compareFileInput').files[0];
+    if (!fileInst) {
+        alert("Please select a second XML file to compare.");
+        return;
+    }
+
+    const statusTxt = document.getElementById('compare-status');
+    const summaryDiv = document.getElementById('compare-summary');
+    const detailsDiv = document.getElementById('compare-details');
+    const headerDiv = document.getElementById('compare-results-header');
+
+    statusTxt.innerHTML = "Comparing databases... this may take a few seconds for large files.";
+    detailsDiv.innerHTML = "";
+    headerDiv.classList.add('hidden');
+
+    try {
+        const payload = await fileInst.arrayBuffer();
+        const res = await fetch('/api/compare', {
+            method: 'POST',
+            body: payload
+        });
+        
+        const data = await res.json();
+        const results = data.details;
+        
+        statusTxt.innerHTML = `<span style="color:var(--status-ready);">Comparison complete!</span>`;
+        headerDiv.classList.remove('hidden');
+        
+        // Render Summary
+        summaryDiv.innerHTML = `
+            <div class="compare-summary-item"><span class="status-badge added">Added</span> <strong>${data.summary.added}</strong></div>
+            <div class="compare-summary-item"><span class="status-badge removed">Removed</span> <strong>${data.summary.removed}</strong></div>
+            <div class="compare-summary-item"><span class="status-badge modified">Modified</span> <strong>${data.summary.modified}</strong></div>
+        `;
+
+        // Render Details
+        let detailsHtml = '';
+
+        // Added
+        results.added.forEach(p => {
+            detailsHtml += `
+                <div class="profile-card">
+                    <div class="profile-header">
+                        <span class="status-badge added">Added</span>
+                        <span class="profile-title">${assembleNameFromDict(p)}</span>
+                        <span class="profile-id">ID: ${p.ID}</span>
+                    </div>
+                </div>
+            `;
+        });
+
+        // Removed
+        results.removed.forEach(p => {
+            detailsHtml += `
+                <div class="profile-card">
+                    <div class="profile-header">
+                        <span class="status-badge removed">Removed</span>
+                        <span class="profile-title">${p.PrimaryName}</span>
+                        <span class="profile-id">ID: ${p.ID}</span>
+                    </div>
+                </div>
+            `;
+        });
+
+        // Modified
+        results.modified.forEach(m => {
+            const before = m.Before;
+            const after = m.After;
+            
+            detailsHtml += `
+                <div class="profile-card">
+                    <div class="profile-header">
+                        <span class="status-badge modified">Modified</span>
+                        <span class="profile-title">${m.PrimaryName}</span>
+                        <span class="profile-id">ID: ${m.ID}</span>
+                    </div>
+                    <div class="diff-container">
+                        <div class="diff-box diff-box-left">
+                            <h4>Current Database (Old)</h4>
+                            ${renderDiffBoxContent(before, after)}
+                        </div>
+                        <div class="diff-box diff-box-right">
+                            <h4>New File (Compared)</h4>
+                            ${renderDiffBoxContent(after, before)}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        detailsDiv.innerHTML = detailsHtml || "<p>No differences found. The files are identical.</p>";
+
+    } catch (err) {
+        statusTxt.innerHTML = `<span style="color:var(--warning-color);">Error comparing: ${err}</span>`;
+        console.error(err);
+    }
+});
+
+function renderDiffBoxContent(p, other = null) {
+    const isChanged = (field, val1, val2) => {
+        if (!other) return false;
+        return JSON.stringify(val1) !== JSON.stringify(val2);
+    };
+
+    const pName = assembleNameFromDict(p);
+    const oName = other ? assembleNameFromDict(other) : pName;
+    
+    const pType = p.PartySubTypeID?.value || 'N/A';
+    const oType = other?.PartySubTypeID?.value || 'N/A';
+    
+    const pComment = p.DistinctPartyComment || '-';
+    const oComment = other?.DistinctPartyComment || '-';
+
+    let html = `
+        <div class="diff-field ${isChanged('name', pName, oName) ? 'changed' : ''}"><span class="diff-label">Primary Name:</span> ${pName}</div>
+        <div class="diff-field ${isChanged('type', pType, oType) ? 'changed' : ''}"><span class="diff-label">Type:</span> ${pType}</div>
+        <div class="diff-field ${isChanged('comment', pComment, oComment) ? 'changed' : ''}"><span class="diff-label">Comment:</span> ${pComment}</div>
+    `;
+    
+    // Aliases
+    const getAliases = (prof) => {
+        const alts = [];
+        (prof.Identity || []).forEach(id => {
+            (id.Alias || []).forEach(al => {
+                if (al.Primary === 'true') return;
+                let nameText = formatAliasName(al, id);
+                if (nameText) alts.push(nameText);
+            });
+        });
+        return alts.sort();
+    };
+
+    const pAliases = getAliases(p);
+    const oAliases = other ? getAliases(other) : pAliases;
+
+    if (pAliases.length || oAliases.length) {
+        html += `<div class="diff-field ${isChanged('aliases', pAliases, oAliases) ? 'changed' : ''}">
+            <span class="diff-label">Aliases:</span>
+            <div style="font-size:0.85em; color:var(--text-muted); padding-left:10px;">
+                ${pAliases.slice(0, 5).join(', ')}${pAliases.length > 5 ? '...' : ''}
+            </div>
+        </div>`;
+    }
+
+    // Features
+    const getFeaturesMap = (prof) => {
+        const fMap = {};
+        (prof.Feature || []).forEach(f => {
+            let ftypeName = f.FeatureTypeID?.value || "Unknown";
+            let fValues = [];
+            (f.FeatureVersion || []).forEach(fv => {
+                let detail = "";
+                (fv.VersionLocation || []).forEach(loc => { detail += (loc.LocationID?.value || loc.LocationID || '') + " "; });
+                (fv.VersionDetail || []).forEach(vd => {
+                    if (vd.text) detail += vd.text + " ";
+                    if (vd.DetailReferenceID) detail += (vd.DetailReferenceID.value || vd.DetailReferenceID) + " ";
+                });
+                (fv.DatePeriod || []).forEach(dp => {
+                    let start = dp.Start?.[0]?.From?.[0];
+                    if (start) {
+                        let dateStr = [start.Year?.[0]?.text, start.Month?.[0]?.text, start.Day?.[0]?.text].filter(x => x).join('-');
+                        if (dateStr) detail += dateStr + " ";
+                    }
+                });
+                if (detail.trim()) fValues.push(detail.trim());
+            });
+            if (fValues.length) fMap[ftypeName] = fValues.sort().join('; ');
+        });
+        return fMap;
+    };
+
+    const pFeatures = getFeaturesMap(p);
+    const oFeatures = other ? getFeaturesMap(other) : pFeatures;
+    
+    // Combine all feature types present in either
+    const allFeatureTypes = Array.from(new Set([...Object.keys(pFeatures), ...Object.keys(oFeatures)])).sort();
+
+    allFeatureTypes.forEach(ft => {
+        const pVal = pFeatures[ft] || null;
+        const oVal = oFeatures[ft] || null;
+        if (pVal !== null) {
+            html += `<div class="diff-field ${isChanged('f-' + ft, pVal, oVal) ? 'changed' : ''}"><span class="diff-label">${ft}:</span> ${pVal}</div>`;
+        }
+    });
+
+    // Sanctions
+    const getSanctionsSummary = (prof) => {
+        return (prof.SanctionsEntries || []).map(se => ({
+            List: se.ListName,
+            Date: se.EntryDate,
+            Programs: (se.SanctionsMeasures || []).map(sm => sm.Comment).filter(x => x).sort()
+        })).sort((a,b) => (a.List + a.Date).localeCompare(b.List + b.Date));
+    };
+
+    const pSanc = getSanctionsSummary(p);
+    const oSanc = other ? getSanctionsSummary(other) : pSanc;
+
+    if (pSanc.length || oSanc.length) {
+        (p.SanctionsEntries || []).forEach((se, idx) => {
+            // Find if this specific sanction entry exists in the other/is changed
+            // For simplicity, we compare based on list/date
+            const otherMatch = oSanc.find(os => os.List === se.ListName && os.Date === se.EntryDate);
+            const mySanc = { List: se.ListName, Date: se.EntryDate, Programs: (se.SanctionsMeasures || []).map(sm => sm.Comment).filter(x => x).sort() };
+            
+            html += `
+                <div class="diff-field ${isChanged('s-' + idx, mySanc, otherMatch) ? 'changed' : ''}" style="border-top:1px dashed var(--glass-border); padding-top:10px;">
+                    <span class="diff-label">Sanctions List:</span> ${se.ListName || 'N/A'} <br/>
+                    <span class="diff-label">Entry Date:</span> ${se.EntryDate || 'N/A'} <br/>
+                    <span class="diff-label">Programs:</span> ${(se.SanctionsMeasures || []).map(sm => sm.Comment).filter(x => x).join(', ') || 'N/A'}
+                </div>
+            `;
+        });
+    }
+
+    return html;
+}
+
+function assembleNameFromDict(p) {
+    let names = [];
+    (p.Identity || []).forEach(id => {
+        (id.Alias || []).forEach(al => {
+            if (al.Primary === "true") {
+                let nameText = formatAliasName(al, id);
+                if (nameText) names.push(nameText);
+            }
+        });
+    });
+    return names.length > 0 ? names.join('; ') : "Unknown Entity";
+}
+

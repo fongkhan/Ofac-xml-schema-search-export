@@ -57,3 +57,11 @@ All notable changes to the **OFAC SDN Advanced Search API** project will be docu
 - **Streamed Full Database Export**: Implemented a memory-efficient backend endpoint `/api/export/all` that flattens and streams the entire 18,698 profile database directly into a single CSV file.
 - **Header Export Button**: Added a primary action button in the application header for one-click access to the full dataset export.
 - **Memory Optimized CSV Generation**: Utilized chunked writing to handle large datasets natively without exceeding server RAM limits.
+
+## [1.8.0] - Database Delta Comparison
+- **XML Comparison Engine**: New tool to compare the currently loaded live database against an external `sdn_advanced.xml` file.
+- **Side-by-Side Diff View**: Visual comparison of profiles with amber-colored highlighting for modified fields (Primary Name, Alias list, features, and sanctions).
+- **Delta Reporting**: Summary dashboard showing Added, Removed, and Modified profile counts.
+- **CSV Delta Export**: Ability to download the "Delta Report" in CSV format for audit trails and version tracking.
+- **Performance Optimized**: Comparison of 117MB files completes in ~5-8 seconds using streaming `iterparse` without memory exhaustion.
+- **Fixed Syntax Error**: Resolved an orphaned `else` block in backend export logic blocking certain CSV downloads.

@@ -13,6 +13,8 @@ PORT = 8000
 
 print("Initializing OFAC Data Server...")
 
+last_comparison_result = None
+
 class OFACDatabase:
     def __init__(self):
         self.references = {}
@@ -202,6 +204,118 @@ class OFACDatabase:
             new_index.append((search_text, pid))
         self.search_index = new_index
         print(f"Search index rebuilt. Found {len(self.sanctions_programs)} unique sanctions programs.")
+
+    def compare(self, other_file_path):
+        """
+        Compare the current database with another XML file.
+        Returns a dictionary with added, removed, and modified profiles.
+        """
+        print(f"Comparing current database with {other_file_path}...")
+        
+        # We'll use a temporary dictionary for the other profiles
+        other_profiles = {}
+        
+        # Pass 1: Profiles
+        context = ET.iterparse(other_file_path, events=('start', 'end'))
+        for event, elem in context:
+            tag = elem.tag.split('}')[-1]
+            if event == 'end' and tag == 'DistinctParty':
+                ns = elem.tag.split('}')[0] + '}'
+                prof_elem = elem.find(f'{ns}Profile')
+                if prof_elem is not None:
+                    pid = prof_elem.attrib.get('ID')
+                    if pid:
+                        prof_dict = self._elem_to_dict(prof_elem)
+                        comment_elem = elem.find(f'{ns}Comment')
+                        if comment_elem is not None and comment_elem.text:
+                            prof_dict['DistinctPartyComment'] = comment_elem.text.strip()
+                        other_profiles[pid] = prof_dict
+                elem.clear()
+        
+        # Pass 2: SanctionsEntries
+        try:
+            context2 = ET.iterparse(other_file_path, events=('start', 'end'))
+            in_sanctions = False
+            for event, elem in context2:
+                tag = elem.tag.split('}')[-1]
+                if event == 'start' and tag == 'SanctionsEntries':
+                    in_sanctions = True
+                if event == 'end' and in_sanctions and tag == 'SanctionsEntry':
+                    pid = elem.attrib.get('ProfileID', '')
+                    if pid and pid in other_profiles:
+                        ns = elem.tag.split('}')[0] + '}'
+                        se_data = {'ListID': elem.attrib.get('ListID', '')}
+                        list_ref = self.references.get('List', {})
+                        if se_data['ListID'] in list_ref:
+                            se_data['ListName'] = list_ref[se_data['ListID']]
+                        for ee in elem.iter(f'{ns}EntryEvent'):
+                            ee_type_id = ee.attrib.get('EntryEventTypeID', '')
+                            legal_id = ee.attrib.get('LegalBasisID', '')
+                            ee_type_ref = self.references.get('EntryEventType', {})
+                            legal_ref = self.references.get('LegalBasis', {})
+                            se_data['EntryEventType'] = ee_type_ref.get(ee_type_id, ee_type_id)
+                            se_data['LegalBasis'] = legal_ref.get(legal_id, legal_id)
+                            date_parts = []
+                            for y in ee.iter(f'{ns}Year'):
+                                if y.text: date_parts.append(y.text.strip())
+                            for m in ee.iter(f'{ns}Month'):
+                                if m.text: date_parts.insert(1, m.text.strip())
+                            for d in ee.iter(f'{ns}Day'):
+                                if d.text: date_parts.append(d.text.strip())
+                            if date_parts: se_data['EntryDate'] = "-".join(date_parts)
+                            break
+                        measures = []
+                        st_ref = self.references.get('SanctionsType', {})
+                        for sm in elem.iter(f'{ns}SanctionsMeasure'):
+                            st_id = sm.attrib.get('SanctionsTypeID', '')
+                            measures.append({'SanctionsType': st_ref.get(st_id, st_id), 
+                                           'Comment': sm.find(f'{ns}Comment').text.strip() if sm.find(f'{ns}Comment') is not None and sm.find(f'{ns}Comment').text else ''})
+                        se_data['SanctionsMeasures'] = measures
+                        if 'SanctionsEntries' not in other_profiles[pid]:
+                            other_profiles[pid]['SanctionsEntries'] = []
+                        other_profiles[pid]['SanctionsEntries'].append(se_data)
+                if event == 'end' and tag == 'SanctionsEntries':
+                    break
+        except Exception as e:
+            print(f"Warning during comparison sanctions parse: {e}")
+
+        added = []
+        removed = []
+        modified = []
+        
+        current_ids = set(self.profiles.keys())
+        other_ids = set(other_profiles.keys())
+        
+        added_ids = other_ids - current_ids
+        removed_ids = current_ids - other_ids
+        common_ids = current_ids & other_ids
+        
+        for pid in added_ids:
+            added.append(other_profiles[pid])
+            
+        for pid in removed_ids:
+            removed.append({'ID': pid, 'PrimaryName': self.get_profile_primary_name(self.profiles[pid])})
+            
+        for pid in common_ids:
+            p_old = self.profiles[pid]
+            p_new = other_profiles[pid]
+            
+            # Simple deep comparison by JSON dump for speed + accuracy
+            # Note: We might want a more granular comparison if order of list matters, 
+            # but usually XML parsing preserves it or it's irrelevant.
+            if json.dumps(p_old, sort_keys=True) != json.dumps(p_new, sort_keys=True):
+                modified.append({
+                    'ID': pid,
+                    'PrimaryName': self.get_profile_primary_name(p_new),
+                    'Before': p_old,
+                    'After': p_new
+                })
+        
+        return {
+            'added': added,
+            'removed': removed,
+            'modified': modified
+        }
 
     def _elem_to_dict(self, elem):
         d = {}
@@ -511,6 +625,30 @@ class RequestHandler(BaseHTTPRequestHandler):
             else:
                 self.send_response(400)
                 self.end_headers()
+
+        elif path == "/api/export-delta":
+            if not last_comparison_result:
+                self.send_response(404)
+                self.end_headers()
+                return
+                
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/csv')
+            self.send_header('Content-Disposition', 'attachment; filename="ofac_delta_report.csv"')
+            self.end_headers()
+            
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow(["Status", "OFAC_ID", "PrimaryName"])
+            
+            for p in last_comparison_result['added']:
+                writer.writerow(["Added", p.get('ID', ''), db.get_profile_primary_name(p)])
+            for p in last_comparison_result['removed']:
+                writer.writerow(["Removed", p.get('ID', ''), p.get('PrimaryName', '')])
+            for p in last_comparison_result['modified']:
+                writer.writerow(["Modified", p.get('ID', ''), p.get('PrimaryName', '')])
+                
+            self.wfile.write(output.getvalue().encode('utf-8'))
                 
         elif path == "/api/search/dataset":
             query_dict = urllib.parse.parse_qs(parsed_path.query)
@@ -699,20 +837,34 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(output.getvalue().encode('utf-8'))
 
-        elif path == "/api/upload":
+            self.wfile.write(json.dumps({"success": True, "message": "XML Uploaded and database restarted!"}).encode('utf-8'))
+
+        elif path == "/api/compare":
             content_length = int(self.headers.get('Content-Length', 0))
             post_data = self.rfile.read(content_length)
             
-            # Simple direct overwrite for the demo.
-            with open(DATA_FILE, "wb") as f:
+            temp_file = "temp_compare.xml"
+            with open(temp_file, "wb") as f:
                 f.write(post_data)
                 
-            db.load(DATA_FILE)
+            global last_comparison_result
+            last_comparison_result = db.compare(temp_file)
+            
+            # Clean up temp file
+            try: os.remove(temp_file)
+            except: pass
             
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
-            self.wfile.write(json.dumps({"success": True, "message": "XML Uploaded and database restarted!"}).encode('utf-8'))
+            self.wfile.write(json.dumps({
+                "summary": {
+                    "added": len(last_comparison_result['added']),
+                    "removed": len(last_comparison_result['removed']),
+                    "modified": len(last_comparison_result['modified'])
+                },
+                "details": last_comparison_result
+            }).encode('utf-8'))
 
         else:
             self.send_response(404)
