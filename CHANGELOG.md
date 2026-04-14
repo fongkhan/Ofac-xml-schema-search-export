@@ -65,3 +65,12 @@ All notable changes to the **OFAC SDN Advanced Search API** project will be docu
 - **CSV Delta Export**: Ability to download the "Delta Report" in CSV format for audit trails and version tracking.
 - **Performance Optimized**: Comparison of 117MB files completes in ~5-8 seconds using streaming `iterparse` without memory exhaustion.
 - **Fixed Syntax Error**: Resolved an orphaned `else` block in backend export logic blocking certain CSV downloads.
+## [1.9.0] - Deep Reference Resolution & Metadata Expansion
+- **Cross-Reference Linkage System**: Implemented a clean `ref_links` architecture in the backend to follow secondary and tertiary attributes inside XML reference sets.
+- **PartyType Mapping**: Automatically resolves `PartySubType` → `PartyTypeID` → `PartyType` (e.g., "Vessel" maps to "Transport"). Added dedicated `PartyType` badges to the UI and columns to CSV exports.
+- **Sanctions Hierarchy**: Resolved `SanctionsProgram` → `SubsidiaryBodyID` → `SubsidiaryBody` (e.g., matching programs to the Office of Foreign Assets Control).
+- **Area Code Enrichment**: Deeply resolved `AreaCode` attributes to extract `_text`, `Description`, and `CountryID` (mapped to `Country` label) from profile locations.
+- **Enhanced Export Support**: Updated all CSV export modules (Full Database, Batch Search, Unique Search) to include columns for `PartyType`, `SubsidiaryBody`, `AreaCode_Text`, `AreaCode_Description`, and `AreaCode_Country`.
+- **Improved Diff View**: Upgraded the Database Comparison tool to track and highlight changes in `PartyType` and `SubsidiaryBody` metadata.
+- **Refined UI Badges**: Introduced themed badges in search results to clearly distinguish between primary SubTypes and high-level PartyTypes.
+- **Fixed Location Extraction Bug**: Resolved an `AttributeError` in `get_area_codes` by properly isolating `AreaCodeID` attributes from string-joined location parts.

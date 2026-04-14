@@ -18,18 +18,22 @@ last_comparison_result = None
 class OFACDatabase:
     def __init__(self):
         self.references = {}
+        self.ref_links = {}  # Stores cross-reference attributes: {RefType: {id: {attr: val, ...}}}
         self.profiles = {}
         self.search_index = []
         self.locations = {}
+        self.location_area_codes = {}  # {location_id: area_code_id}
         self.sanctions_programs = set()
     
     def load(self, file_path):
         print(f"Loading data from {file_path}")
         context = ET.iterparse(file_path, events=('start', 'end'))
         self.references = {}
+        self.ref_links = {}
         self.profiles = {}
         self.search_index = []
         self.locations = {}
+        self.location_area_codes = {}
         
         in_ref = False
         in_locs = False
@@ -50,6 +54,8 @@ class OFACDatabase:
                     base_tag = vs_tag.replace('Values', '')
                     if base_tag not in self.references:
                         self.references[base_tag] = {}
+                    if base_tag not in self.ref_links:
+                        self.ref_links[base_tag] = {}
                     for child in list(value_set):
                         if 'ID' in child.attrib:
                             id_val = child.attrib['ID']
@@ -60,12 +66,22 @@ class OFACDatabase:
                             else:
                                 val = str(child.attrib)
                             self.references[base_tag][id_val] = val
+                            # Store all extra attributes as cross-reference links
+                            extra = {k: v for k, v in child.attrib.items() if k != 'ID'}
+                            if child.text and child.text.strip():
+                                extra['_text'] = child.text.strip()
+                            if extra:
+                                self.ref_links[base_tag][id_val] = extra
                 elem.clear()
                 in_ref = False
 
             if event == 'end' and in_locs and tag == 'Location':
                 if 'ID' in elem.attrib:
                     id_val = elem.attrib['ID']
+                    # Capture AreaCodeID attribute from Location element
+                    ac_id = elem.attrib.get('AreaCodeID')
+                    if ac_id:
+                        self.location_area_codes[id_val] = ac_id
                     # Extract location details
                     loc_parts = []
                     ns = elem.tag.split('}')[0] + '}'
@@ -317,6 +333,56 @@ class OFACDatabase:
             'modified': modified
         }
 
+    def get_party_type(self, profile):
+        """Resolve PartyType from PartySubTypeID via ref_links."""
+        pst = profile.get('PartySubTypeID')
+        if isinstance(pst, dict):
+            pst_id = pst.get('id', '')
+        elif isinstance(pst, list) and pst:
+            pst_id = pst[0].get('id', '') if isinstance(pst[0], dict) else ''
+        else:
+            return ''
+        links = self.ref_links.get('PartySubType', {}).get(pst_id, {})
+        pt_id = links.get('PartyTypeID', '')
+        return self.references.get('PartyType', {}).get(pt_id, '')
+
+    def get_subsidiary_bodies(self, profile):
+        """Resolve SubsidiaryBody from SanctionsMeasures via ref_links."""
+        bodies = []
+        for se in profile.get('SanctionsEntries', []):
+            for sm in se.get('SanctionsMeasures', []):
+                st = sm.get('SanctionsTypeID', {})
+                st_id = st.get('id', '') if isinstance(st, dict) else str(st)
+                links = self.ref_links.get('SanctionsProgram', {}).get(st_id, {})
+                sb_id = links.get('SubsidiaryBodyID', '')
+                if sb_id:
+                    sb_name = self.references.get('SubsidiaryBody', {}).get(sb_id, '')
+                    if sb_name and sb_name not in bodies:
+                        bodies.append(sb_name)
+        return bodies
+
+    def get_area_codes(self, profile):
+        """Extract AreaCode details (text, description, country) from profile locations via ref_links."""
+        texts, descs, countries = [], [], []
+        loc_ids = set()
+        for f in profile.get('Feature', []):
+            for fv in f.get('FeatureVersion', []):
+                for vl in fv.get('VersionLocation', []):
+                    lid = vl.get('LocationID', {})
+                    lid_val = lid.get('id', '') if isinstance(lid, dict) else str(lid)
+                    if lid_val:
+                        loc_ids.add(lid_val)
+        for lid in loc_ids:
+            ac_id = self.location_area_codes.get(lid)
+            if ac_id:
+                ac_links = self.ref_links.get('AreaCode', {}).get(ac_id, {})
+                texts.append(ac_links.get('_text', ''))
+                descs.append(ac_links.get('Description', ''))
+                c_id = ac_links.get('CountryID', '')
+                if c_id:
+                    countries.append(self.references.get('Country', {}).get(c_id, ''))
+        return texts, descs, countries
+
     def _elem_to_dict(self, elem):
         d = {}
         if elem.text and elem.text.strip():
@@ -538,8 +604,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             
             feature_schema = db.references.get('FeatureType', {})
             f_names = sorted(list(set(feature_schema.values())))
-            sanctions_cols = ["SanctionsList", "EntryDate", "LegalBasis", "SanctionsPrograms"]
-            headers = ["OFAC_ID", "PrimaryName", "Type", "PartyComment", "Aliases"] + sanctions_cols + f_names
+            sanctions_cols = ["SanctionsList", "EntryDate", "LegalBasis", "SanctionsPrograms", "SubsidiaryBody"]
+            area_code_cols = ["AreaCode_Text", "AreaCode_Description", "AreaCode_Country"]
+            headers = ["OFAC_ID", "PrimaryName", "Type", "PartyType", "PartyComment", "Aliases"] + sanctions_cols + area_code_cols + f_names
             
             cw = csv.writer(ChunkWriter(self.wfile))
             cw.writerow(headers)
@@ -592,10 +659,16 @@ class RequestHandler(BaseHTTPRequestHandler):
                     for sm in se.get('SanctionsMeasures', []):
                         if sm.get('Comment'): se_programs.append(sm['Comment'])
                 
+                pPartyType = db.get_party_type(p)
+                se_subsidiary = db.get_subsidiary_bodies(p)
+                ac_texts, ac_descs, ac_countries = db.get_area_codes(p)
+
                 pComment = p.get('DistinctPartyComment', '')
                 row_data = [
-                    p.get("ID", ""), primary_name, pType, pComment, "; ".join(aliases),
-                    "; ".join(se_lists), "; ".join(se_dates), "; ".join(se_legal), "; ".join(se_programs)
+                    p.get("ID", ""), primary_name, pType, pPartyType, pComment, "; ".join(aliases),
+                    "; ".join(se_lists), "; ".join(se_dates), "; ".join(se_legal), "; ".join(se_programs),
+                    "; ".join(se_subsidiary),
+                    "; ".join(ac_texts), "; ".join(ac_descs), "; ".join(ac_countries)
                 ]
                 for fn in f_names:
                     row_data.append("; ".join(feature_map[fn]))
@@ -618,6 +691,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             program_filter = set(programs_param.split(',')) if programs_param else None
             if query:
                 results = db.search_unique(query, program_filter=program_filter)
+                # Inject resolved PartyType into each result for the frontend
+                for r in results:
+                    r['_partyType'] = db.get_party_type(r)
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
@@ -747,8 +823,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             feature_schema = db.references.get('FeatureType', {})
             f_names = sorted(list(set(feature_schema.values())))
             
-            sanctions_cols = ["SanctionsList", "EntryDate", "LegalBasis", "SanctionsPrograms"]
-            headers = ["SearchTerm", "Matched", "OFAC_ID", "PrimaryName", "Type", "PartyComment", "Aliases"] + sanctions_cols + f_names
+            sanctions_cols = ["SanctionsList", "EntryDate", "LegalBasis", "SanctionsPrograms", "SubsidiaryBody"]
+            area_code_cols = ["AreaCode_Text", "AreaCode_Description", "AreaCode_Country"]
+            headers = ["SearchTerm", "Matched", "OFAC_ID", "PrimaryName", "Type", "PartyType", "PartyComment", "Aliases"] + sanctions_cols + area_code_cols + f_names
             writer.writerow(headers)
             
             for row in reader:
@@ -818,17 +895,23 @@ class RequestHandler(BaseHTTPRequestHandler):
                                 prog = sm.get('Comment', '')
                                 if prog: se_programs.append(prog)
 
+                        pPartyType = db.get_party_type(p)
+                        se_subsidiary = db.get_subsidiary_bodies(p)
+                        ac_texts, ac_descs, ac_countries = db.get_area_codes(p)
+
                         pComment = p.get('DistinctPartyComment', '')
                         row_data = [
-                            term, "Yes", p.get("ID", ""), primary_name, pType, pComment, "; ".join(aliases),
-                            "; ".join(se_lists), "; ".join(se_dates), "; ".join(se_legal), "; ".join(se_programs)
+                            term, "Yes", p.get("ID", ""), primary_name, pType, pPartyType, pComment, "; ".join(aliases),
+                            "; ".join(se_lists), "; ".join(se_dates), "; ".join(se_legal), "; ".join(se_programs),
+                            "; ".join(se_subsidiary),
+                            "; ".join(ac_texts), "; ".join(ac_descs), "; ".join(ac_countries)
                         ]
                         for fn in f_names:
                             row_data.append("; ".join(feature_map[fn]))
 
                         writer.writerow(row_data)
                 else:
-                    null_row = [term, "No", "", "", "", "", ""] + [""] * len(sanctions_cols) + [""] * len(f_names)
+                    null_row = [term, "No", "", "", "", "", "", ""] + [""] * len(sanctions_cols) + [""] * len(area_code_cols) + [""] * len(f_names)
                     writer.writerow(null_row)
                     
             self.send_response(200)
@@ -849,6 +932,13 @@ class RequestHandler(BaseHTTPRequestHandler):
                 
             global last_comparison_result
             last_comparison_result = db.compare(temp_file)
+            
+            # Inject _partyType into all profiles for frontend display
+            for p in last_comparison_result.get('added', []):
+                p['_partyType'] = db.get_party_type(p)
+            for m in last_comparison_result.get('modified', []):
+                m['Before']['_partyType'] = db.get_party_type(m['Before'])
+                m['After']['_partyType'] = db.get_party_type(m['After'])
             
             # Clean up temp file
             try: os.remove(temp_file)

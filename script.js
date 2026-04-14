@@ -233,10 +233,17 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
 
             // Extract partyType
             let pType = p.PartySubTypeID ? (p.PartySubTypeID.value || p.PartySubTypeID) : "Unknown";
+            let pPartyType = p._partyType || "";
 
             let html = `
                 <div class="profile-header">
-                    <span class="profile-title">${primaryName} <small style="color:var(--text-muted)">(${pType})</small></span>
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <span class="profile-title">${primaryName}</span>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <span class="profile-badge">${pType}</span>
+                            ${pPartyType ? `<span class="profile-badge party-type">${pPartyType}</span>` : ''}
+                        </div>
+                    </div>
                     <span class="profile-id">ID: ${p.ID}</span>
                 </div>
                 <div class="data-grid">
@@ -343,7 +350,7 @@ document.getElementById('exportCsvBtn').addEventListener('click', () => {
     let fNames = availableFeatureTypes;
 
     const rows = [
-        ["ID", "Primary_Name", "Type", "PartyComment", "Aliases", "SanctionsList", "EntryDate", "LegalBasis", "SanctionsPrograms", ...fNames]
+        ["OFAC_ID", "PrimaryName", "Type", "PartyType", "PartyComment", "Aliases", "SanctionsList", "EntryDate", "LegalBasis", "SanctionsPrograms", "SubsidiaryBody", "AreaCode_Text", "AreaCode_Description", "AreaCode_Country", ...fNames]
     ];
 
     currentUniqueRawData.forEach(p => {
@@ -433,17 +440,23 @@ document.getElementById('exportCsvBtn').addEventListener('click', () => {
         const clean = (str) => typeof str === 'string' ? `"${str.replace(/"/g, '""')}"` : '""';
 
         let pComment = p.DistinctPartyComment || "";
+        let pPartyType = p._partyType || "";
 
         let rowData = [
             clean(p.ID),
             clean(primaryName),
             clean(pType),
+            clean(pPartyType),
             clean(pComment),
             clean(aliases.join("; ")),
             clean(seLists.join("; ")),
             clean(seDates.join("; ")),
             clean(seLegal.join("; ")),
-            clean(sePrograms.join("; "))
+            clean(sePrograms.join("; ")),
+            clean(""),
+            clean(""),
+            clean(""),
+            clean("")
         ];
 
         fNames.forEach(fn => {
@@ -691,12 +704,16 @@ function renderDiffBoxContent(p, other = null) {
     const pType = p.PartySubTypeID?.value || 'N/A';
     const oType = other?.PartySubTypeID?.value || 'N/A';
     
+    const pPartyType = p._partyType || 'N/A';
+    const oPartyType = other?._partyType || 'N/A';
+    
     const pComment = p.DistinctPartyComment || '-';
     const oComment = other?.DistinctPartyComment || '-';
 
     let html = `
         <div class="diff-field ${isChanged('name', pName, oName) ? 'changed' : ''}"><span class="diff-label">Primary Name:</span> ${pName}</div>
-        <div class="diff-field ${isChanged('type', pType, oType) ? 'changed' : ''}"><span class="diff-label">Type:</span> ${pType}</div>
+        <div class="diff-field ${isChanged('type', pType, oType) ? 'changed' : ''}"><span class="diff-label">Sub Type:</span> ${pType}</div>
+        <div class="diff-field ${isChanged('partytype', pPartyType, oPartyType) ? 'changed' : ''}"><span class="diff-label">Party Type:</span> ${pPartyType}</div>
         <div class="diff-field ${isChanged('comment', pComment, oComment) ? 'changed' : ''}"><span class="diff-label">Comment:</span> ${pComment}</div>
     `;
     

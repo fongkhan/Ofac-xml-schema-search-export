@@ -68,8 +68,9 @@ Both unique and batch search exports include:
 
 | Column Group | Columns |
 |---|---|
-| **Core** | SearchTerm*, Matched*, OFAC_ID, PrimaryName, Type, PartyComment, Aliases |
-| **Sanctions** | SanctionsList, EntryDate, LegalBasis, SanctionsPrograms |
+| **Core** | SearchTerm*, Matched*, OFAC_ID, PrimaryName, Type, PartyType, PartyComment, Aliases |
+| **Sanctions** | SanctionsList, EntryDate, LegalBasis, SanctionsPrograms, SubsidiaryBody |
+| **Locations** | AreaCode_Text, AreaCode_Description, AreaCode_Country |
 | **Features** | One column per FeatureType (Birthdate, Gender, Nationality Country, Place of Birth, Title, etc.) |
 
 *\* Batch export only*
